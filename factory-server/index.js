@@ -10,10 +10,6 @@ const redis = new Redis({
 	host: 'redis'
 });
 
-router.get('/hello', async ctx => {
-	ctx.body = "hello";
-});
-
 const timeout = 5; // seconds
 const resultExpire = 86400; // one day
 
@@ -29,15 +25,15 @@ async function push(id, params) {
 async function get() {
 	//console.log('get');
 
-	return await redis.zrangebyscore('jobs', '-inf', '+inf', 'LIMIT', 0, 10);
+	return await redis.zrangebyscore('jobs', '-inf', '+inf', 'LIMIT', 0, 100);
 }
 
 async function lock(id) {
-	console.log('lock', {id});
+	//console.log('lock', {id});
 
 	const success = await redis.set(`lock:${id}`, 'true', 'EX', timeout, 'NX') == 'OK';
 
-	console.log(`lock -> ${success}`);
+	//console.log(`lock -> ${success}`);
 
 	return success;
 }

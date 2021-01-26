@@ -1,11 +1,72 @@
+const fs = require('fs');
 const axios = require('axios');
+const AWS = require('aws-sdk');
+const execa = require('execa');
+const config = require('./config.json');
+
+const s3Config = {
+    accessKeyId: config.gateway.accessKey,
+    secretAccessKey: config.gateway.secretKey,
+    endpoint: 'gateway.tardigradeshare.io',
+    s3ForcePathStyle: true,
+    signatureVersion: 'v4'
+};
+
+console.log(s3Config);
+
+const gateway = new AWS.S3(s3Config);
 
 async function work(id, params) {
-	await new Promise(r => setTimeout(r, 1000));
+	try {
+		console.log('new work!', params);
 
-	return {
-		c: params.a * params.b
-	};
+		const url = gateway.getSignedUrl('getObject', {
+			Bucket: config.gateway.bucket,
+			Key: params.filename,
+			Expires: 100
+		});
+
+		const response = await axios({
+			url,
+			responseType: 'stream'
+		});
+
+		const file = fs.createWriteStream(`${__dirname}/input.mp3`);
+
+		response.data.pipe(file);
+
+		await new Promise(r => file.once("finish", r));
+
+		const proc = execa('spleeter', [
+			'separate',
+			'-p',
+			'spleeter:2stems',
+			'-o',
+			'output',
+			'input.mp3'
+		]);
+
+		proc.stdout.pipe(process.stdout);
+
+		await proc;
+
+		await gateway.putObject({
+			Bucket: config.gateway.bucket,
+			Key: `${params.output}/vocals.wav`,
+			Body: fs.createReadStream(`${__dirname}/output/input/vocals.wav`)
+		}).promise();
+
+		await gateway.putObject({
+			Bucket: config.gateway.bucket,
+			Key: `${params.output}/accompaniment.wav`,
+			Body: fs.createReadStream(`${__dirname}/output/input/accompaniment.wav`)
+		}).promise();
+	} catch(err) {
+		console.log(err);
+
+		throw err;
+	}
+
 }
 
 const factoryServer = 'http://factory-server';
@@ -78,7 +139,6 @@ async function doWork() {
 	}
 }
 
-doWork();
 doWork();
 
 console.log('factory-worker running');
