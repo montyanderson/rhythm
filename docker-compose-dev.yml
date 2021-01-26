@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+    redis:
+      image: redis:latest
+    factory-server:
+        build: factory-server
+        links:
+            - "redis:redis"
+        command: [ "npx", "nodemon", "index.js" ]
+        volumes:
+            - ./factory-server/index.js:/app/index.js
+    factory-worker:
+        build: factory-worker
+        links:
+            - "factory-server:factory-server"
+        command: [ "npx", "nodemon", "index.js" ]
+        volumes:
+            - ./factory-worker/index.js:/app/index.js
+    app-server:
+        build: app-server
+        ports:
+            - "127.0.0.1:3000:3000"
+        links:
+            - "factory-server:factory-server"
+        volumes:
+            - ./app-server/index.js:/app/index.js
+        command: [ "npx", "nodemon", "index.js" ]
